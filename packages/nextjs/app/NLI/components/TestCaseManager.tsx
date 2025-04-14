@@ -3,16 +3,20 @@ import React, { useState } from "react";
 import NLIChat from "./NLIChat";
 import { useBlockchainContext } from "../hooks/useBlockchainContext";
 
-// Define OpenAI models
+// Define LLM model options
 const OPENAI_MODELS = [
   { id: "gpt-4o-mini", name: "GPT-4o Mini" },
   { id: "gpt-4o", name: "GPT-4o" },
+  { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo" },
+  { id: "gpt-3.5-turbo-instruct", name: "GPT-3.5 Turbo Instruct" },
 ];
 
-// Define Open Source models
 const OPEN_SOURCE_MODELS = [
   { id: "llama-3.3-70b-instruct", name: "Llama 3.3 70B Instruct" },
+  { id: "meta-llama/Meta-Llama-3.1-8B-Instruct", name: "Meta-Llama 3.1 8B Instruct" },
   { id: "deepseek-ai/DeepSeek-V3", name: "DeepSeek V3" },
+  { id: "qwen2.5-72b-instruct", name: "Qwen 2.5 72B Instruct" },
+  { id: "deep-gemini", name: "Deep Gemini" },
 ];
 
 // Define test case type

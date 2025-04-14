@@ -46,8 +46,5 @@ The application is publicly accessible through Vercel at:
 
 ## Source Code
 All source code is available on GitHub:
-[https://github.com/chongchen1999/TinyUniswap.git](https://github.com/chongchen1999/TinyUniswap.git)
+[https://github.com/chongchen1999/TinyUniswap-LLM.git](https://github.com/chongchen1999/TinyUniswap-LLM.git)
 
-## Video Demo
-A video demo of the application's functionality is available on YouTube:
-[https://youtu.be/6EZNUZK5jOg](https://youtu.be/6EZNUZK5jOg)
