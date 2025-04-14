@@ -1,0 +1,905 @@
+I am creating my personal DEX.
+
+And below is some code to build the NLI page:
+
+# packages/nextjs/app/NLI/page.tsx
+"use client";
+
+import React, { useState, useEffect } from "react";
+import NLIChat from "./components/NLIChat";
+import SwapAnalytics from "./components/SwapAnalytics";
+import TabNavigation, { Tab } from "./components/TabNavigation";
+import TestCaseManager from "./components/TestCaseManager";
+
+// Define tabs for the interface
+const tabs: Tab[] = [
+  { id: "chat", label: "Natural Language Interface", icon: "💬" },
+  { id: "testcases", label: "Test Cases", icon: "🧪" },
+  { id: "analytics", label: "Swap Analytics", icon: "📊" }
+];
+
+/**
+ * Integrated Natural Language Interface, Test Cases, and Swap Analytics page component
+ */
+const NLI: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<string>("chat");
+  
+  // Listen for tab switch events from components
+  useEffect(() => {
+    const handleSwitchTab = (event: CustomEvent) => {
+      if (event.detail && tabs.some(tab => tab.id === event.detail)) {
+        setActiveTab(event.detail);
+      }
+    };
+    
+    window.addEventListener('switchTab', handleSwitchTab as EventListener);
+    
+    return () => {
+      window.removeEventListener('switchTab', handleSwitchTab as EventListener);
+    };
+  }, []);
+
+  return (
+    <div className="container mx-auto py-10 px-4">
+      <h1 className="text-4xl font-bold text-center mb-6">DEX Interface</h1>
+      
+      <TabNavigation 
+        tabs={tabs} 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab} 
+      />
+      
+      {activeTab === "chat" ? (
+        <>
+          <h2 className="text-2xl font-semibold text-center mb-6">Natural Language Interface</h2>
+          <NLIChat />
+        </>
+      ) : activeTab === "testcases" ? (
+        <>
+          <h2 className="text-2xl font-semibold text-center mb-6">NLI Test Cases</h2>
+          <TestCaseManager />
+        </>
+      ) : (
+        <>
+          <h2 className="text-2xl font-semibold text-center mb-6">Swap Analytics</h2>
+          <SwapAnalytics />
+        </>
+      )}
+    </div>
+  );
+};
+
+export default NLI;
+
+# packages/nextjs/app/NLI/components/ChatHistory.tsx
+import React from "react";
+
+type Message = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
+type ChatHistoryProps = {
+  messages: Message[];
+};
+
+const ChatHistory: React.FC<ChatHistoryProps> = ({ messages }) => {
+  if (messages.length === 0) return null;
+
+  return (
+    <div className="bg-base-100 shadow-lg shadow-secondary border-8 border-secondary rounded-xl p-6">
+      <h2 className="text-2xl font-semibold mb-4">Conversation History</h2>
+      <div className="space-y-4">
+        {messages.map((message, index) => (
+          <div 
+            key={index} 
+            className={`p-3 rounded-lg ${
+              message.role === "user" 
+                ? "bg-primary text-primary-content ml-12" 
+                : "bg-base-200 mr-12"
+            }`}
+          >
+            <p className="text-sm font-semibold mb-1">
+              {message.role === "user" ? "You" : "Assistant"}
+            </p>
+            <p className="whitespace-pre-line">{message.content}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default ChatHistory;
+
+#packages/nextjs/app/NLI/components/NLIChat.tsx
+// Updated NLIChat.tsx
+import React, { useState, useEffect } from "react";
+import ChatHistory from "./ChatHistory";
+import LoadingState from "./LoadingState";
+import ResponseDisplay from "./ResponseDisplay";
+import { useBlockchainContext } from "../hooks/useBlockchainContext";
+import { useLiquidity } from "../hooks/useLiquidity";
+import { useSwap } from "../hooks/useSwap";
+import { useLLM } from "../hooks/useLLM";
+import { POOLS } from "../utils/constants";
+
+// Define LLM model options
+const LLM_MODELS = [
+  { id: "gpt-4o-mini", name: "gpt-4o-mini" },
+  { id: "gpt-4o", name: "gpt-4o" },
+  { id: "llama-3.3-70b-instruct", name: "llama-3.3-70b-instruct" },
+  { id: "deepseek-ai/DeepSeek-V3", name: "deepseek-ai/DeepSeek-V3" },
+];
+
+interface NLIChatProps {
+  standalone?: boolean;
+  initialPrompt?: string;
+  onResponseReceived?: (response: any) => void;
+}
+
+const NLIChat: React.FC<NLIChatProps> = ({ 
+  standalone = false,
+  initialPrompt = "",
+  onResponseReceived
+}) => {
+  const [userInput, setUserInput] = useState(initialPrompt);
+  const [response, setResponse] = useState("");
+  const [transactionStatus, setTransactionStatus] = useState("");
+  const [actionTaken, setActionTaken] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState("gpt-4o-mini");
+  const [showExampleDropdown, setShowExampleDropdown] = useState(false);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+  
+  // Custom hooks
+  const { blockchainData, contracts, liquidity } = useBlockchainContext();
+  const { executeSwap, swapStatus, setSwapStatus } = useSwap();
+  const { 
+    addLiquidity, 
+    withdrawLiquidity, 
+    liquidityStatus, 
+    setLiquidityStatus 
+  } = useLiquidity();
+  const { 
+    handleUserMessage, 
+    isLoading, 
+    chatHistory, 
+    debugInfo 
+  } = useLLM();
+  
+  // Example questions
+  const easyQuestions = [
+    "Swap 5 TokenA for TokenB", 
+    "Deposit 10 TokenA and 10 TokenB to the TokenA-TokenB pool", 
+    "Withdraw 5 of my liquidity tokens in the TokenA-TokenB pool", 
+    "What are the reserves of the TokenA-TokenB pool?", 
+    "Show me all the liquidity pools",
+    "How much liquidity I have in each pool", 
+    "How many swaps have there been in the TokenA-TokenB pool today?", 
+    "What is the current price of TokenB in TokenA?", 
+    "How much liquidity do I have in the TokenA-TokenB pool?", 
+    "Show me the balance of my wallet",
+  ];
+  
+  const hardQuestions = [
+    "What is the best route to swap 5 ETH to TokenB? Draw a conclusion by calculation.", 
+    "I want to gain 20 liquidity tokens for the TokenA-TokenB pool, how much TokenA and TokenB do I need to provide?",
+    "Do I have enough tokens to provide 15% of TokenA-TokenB pool liquidity?",
+    "I want to get 10 TokenA, how many liquidity tokens do I need to withdraw from the TokenA-TokenB pool?",
+    "How do I swap so the ratio of TokenA:TokenB in the TokenA-TokenB pool is 1:2?",
+    "What percentage of liquidity should I provide to double the reserves of the TokenA-TokenB pool?",
+    "Calculate my projected APY from fees in the TokenA-TokenB pool",
+    "Show me price history of TokenA-TokenB pool for the last 7 days",
+    "What's the slippage if I swap 10 TokenA for TokenB?",
+    "What's the optimal ratio to provide TokenA-TokenB liquidity?",
+  ];
+  
+  // Set initial prompt if provided
+  useEffect(() => {
+    if (initialPrompt) {
+      setUserInput(initialPrompt);
+    }
+  }, [initialPrompt]);
+  
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.example-dropdown') && !target.closest('.example-button')) {
+        setShowExampleDropdown(false);
+      }
+      if (!target.closest('.model-dropdown') && !target.closest('.model-button')) {
+        setShowModelDropdown(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+  
+  // Helper function to map pool names to POOLS constants
+  const mapPoolNameToConstant = (poolName: string): string => {
+    // Normalize the pool name (lowercase and remove spaces)
+    const normalizedName = poolName.toLowerCase().replace(/\s+/g, '');
+    
+    // Map different possible pool names to the correct POOL constant
+    if (normalizedName.includes('ethtokena') || 
+        normalizedName.includes('eth-tokena') || 
+        normalizedName.includes('ethtokenpool')) {
+      return POOLS.ETH_TOKEN_A;
+    }
+    
+    if (normalizedName.includes('ethtokenb') || 
+        normalizedName.includes('eth-tokenb')) {
+      return POOLS.ETH_TOKEN_B;
+    }
+    
+    if (normalizedName.includes('tokenatokenb') || 
+        normalizedName.includes('tokena-tokenb')) {
+      return POOLS.TOKEN_A_TOKEN_B;
+    }
+    
+    // Default case: return the original name
+    return poolName;
+  };
+  
+  // Process user input and execute actions
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userInput.trim()) return;
+    
+    // Reset status states
+    setTransactionStatus("");
+    setActionTaken(null);
+    setSwapStatus("");
+    setLiquidityStatus("");
+    
+    // Get LLM response
+    // In a real implementation, you would pass the selectedModel to the LLM hook
+    const processedResponse = await handleUserMessage(userInput, blockchainData, selectedModel);
+    
+    // Check if an action needs to be executed
+    if (processedResponse.actionType && processedResponse.actionParams) {
+      const { actionType, actionParams } = processedResponse;
+      
+      let success = false;
+      let actionDescription = "";
+      
+      switch (actionType) {
+        case "SWAP":
+          if (actionParams.length >= 3) {
+            const fromToken = actionParams[0];
+            const toToken = actionParams[1];
+            const amount = actionParams[2];
+            
+            success = await executeSwap(fromToken, toToken, amount, {
+              ethTokenAPoolAddress: contracts.ETHTokenAPoolInfo?.address,
+              tokenATokenBPoolAddress: contracts.TokenATokenBPoolInfo?.address,
+              ethTokenBPoolAddress: contracts.ETHTokenBPoolInfo?.address
+            });
+            
+            actionDescription = `${success ? "Executed" : "Failed to execute"} swap of ${amount} ${fromToken} to ${toToken}`;
+          }
+          break;
+          
+        case "DEPOSIT":
+          if (actionParams.length >= 3) {
+            // Map the pool name to a constant from POOLS
+            const poolInput = actionParams[0];
+            const mappedPool = mapPoolNameToConstant(poolInput);
+            const amount1 = actionParams[1];
+            const amount2 = actionParams[2];
+            
+            console.log(`Adding liquidity to pool: Original=${poolInput}, Mapped=${mappedPool}`);
+            console.log(`Amounts: ${amount1}, ${amount2}`);
+            
+            try {
+              success = await addLiquidity(mappedPool, amount1, amount2, {
+                ethTokenAPoolAddress: contracts.ETHTokenAPoolInfo?.address,
+                tokenATokenBPoolAddress: contracts.TokenATokenBPoolInfo?.address,
+                ethTokenBPoolAddress: contracts.ETHTokenBPoolInfo?.address
+              }, {
+                totalETHTokenALiquidity: liquidity.totalETHTokenALiquidity,
+                totalTokenATokenBLiquidity: liquidity.totalTokenATokenBLiquidity,
+                totalETHTokenBLiquidity: liquidity.totalETHTokenBLiquidity
+              });
+              
+              actionDescription = `${success ? "Added" : "Failed to add"} liquidity to ${poolInput} (${amount1}, ${amount2})`;
+            } catch (error: any) {
+              console.error(`Error adding liquidity to ${mappedPool}:`, error);
+              actionDescription = `Failed to add liquidity to ${poolInput}: ${error.message || "Unknown error"}`;
+              success = false;
+            }
+          } else {
+            actionDescription = "Failed to add liquidity: insufficient parameters";
+            success = false;
+          }
+          break;
+          
+        case "WITHDRAW":
+          if (actionParams.length >= 2) {
+            // Map the pool name to a constant from POOLS
+            const poolInput = actionParams[0];
+            const mappedPool = mapPoolNameToConstant(poolInput);
+            const amount = actionParams[1];
+            
+            try {
+              success = await withdrawLiquidity(mappedPool, amount);
+              actionDescription = `${success ? "Withdrew" : "Failed to withdraw"} ${amount} liquidity from ${poolInput}`;
+            } catch (error: any) {
+              console.error(`Error withdrawing liquidity from ${mappedPool}:`, error);
+              actionDescription = `Failed to withdraw liquidity from ${poolInput}: ${error.message || "Unknown error"}`;
+              success = false;
+            }
+          } else {
+            actionDescription = "Failed to withdraw liquidity: insufficient parameters";
+            success = false;
+          }
+          break;
+      }
+      
+      setActionTaken(actionDescription);
+      // Set transaction status based on the action outcome
+      setTransactionStatus(success 
+        ? `Action completed: ${actionDescription}` 
+        : `Action failed: ${actionDescription}`);
+    }
+    
+    setResponse(processedResponse.processedResponse);
+    
+    // Callback for test case integration
+    if (onResponseReceived) {
+      onResponseReceived({
+        prompt: userInput,
+        response: processedResponse.processedResponse,
+        actionTaken,
+        success: !!actionTaken && !transactionStatus.includes("failed")
+      });
+    }
+    
+    setUserInput("");
+  };
+  
+  // Handle when a user selects an example question
+  const handleExampleClick = (exampleText: string) => {
+    setUserInput(exampleText);
+    setShowExampleDropdown(false);
+  };
+  
+  // Handle when a user selects an LLM model
+  const handleModelSelect = (modelId: string) => {
+    setSelectedModel(modelId);
+    setShowModelDropdown(false);
+  };
+  
+  // Combine status messages
+  const statusMessage = swapStatus || liquidityStatus || transactionStatus;
+  
+  return (
+    <div className="max-w-4xl mx-auto">
+      {/* Only show examples in the main chat view, not in standalone mode */}
+      {!standalone && (
+        <div className="mt-4 text-center bg-base-100 shadow-lg shadow-info border-4 border-info rounded-xl p-4 mb-8">
+          <p className="text-sm">
+            Looking for swap history and price analytics? Check the{" "}
+            <button onClick={() => window.dispatchEvent(new CustomEvent('switchTab', { detail: 'analytics' }))} 
+                    className="text-accent underline">
+              Swap Analytics
+            </button>{" "}
+            tab
+          </p>
+        </div>
+      )}
+      
+      <div className="bg-base-100 shadow-lg shadow-secondary border-8 border-secondary rounded-xl p-6 mb-8">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col md:flex-row gap-4 mb-2">
+            {/* Model selector dropdown */}
+            <div className="relative md:w-1/3">
+              <div 
+                className="model-button flex justify-between items-center p-3 border border-primary rounded-lg cursor-pointer bg-base-200 hover:bg-base-300"
+                onClick={() => setShowModelDropdown(!showModelDropdown)}
+              >
+                <span>Model: {LLM_MODELS.find(m => m.id === selectedModel)?.name || selectedModel}</span>
+                <svg 
+                  className={`w-4 h-4 transition-transform ${showModelDropdown ? "rotate-180" : ""}`}
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </div>
+              
+              {showModelDropdown && (
+                <div className="model-dropdown absolute z-10 w-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg">
+                  <ul className="py-1">
+                    {LLM_MODELS.map(model => (
+                      <li 
+                        key={model.id} 
+                        className={`px-4 py-2 hover:bg-base-200 cursor-pointer ${model.id === selectedModel ? 'bg-primary bg-opacity-20' : ''}`}
+                        onClick={() => handleModelSelect(model.id)}
+                      >
+                        {model.name}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            
+            {/* Examples dropdown */}
+            <div className="relative md:w-2/3">
+              <div 
+                className="example-button flex justify-between items-center p-3 border border-secondary rounded-lg cursor-pointer bg-base-200 hover:bg-base-300"
+                onClick={() => setShowExampleDropdown(!showExampleDropdown)}
+              >
+                <span>Select an example question...</span>
+                <svg 
+                  className={`w-4 h-4 transition-transform ${showExampleDropdown ? "rotate-180" : ""}`}
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </div>
+              
+              {showExampleDropdown && (
+                <div className="example-dropdown absolute z-10 w-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                  <div className="sticky top-0 bg-base-100 px-4 py-2 border-b border-base-300 font-semibold text-primary">
+                    Easy Examples
+                  </div>
+                  <ul className="py-1">
+                    {easyQuestions.map((question, index) => (
+                      <li 
+                        key={`easy-${index}`}
+                        className="px-4 py-2 hover:bg-base-200 cursor-pointer"
+                        onClick={() => handleExampleClick(question)}
+                      >
+                        {question}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="sticky top-0 bg-base-100 px-4 py-2 border-t border-b border-base-300 font-semibold text-secondary">
+                    Advanced Examples
+                  </div>
+                  <ul className="py-1">
+                    {hardQuestions.map((question, index) => (
+                      <li 
+                        key={`hard-${index}`}
+                        className="px-4 py-2 hover:bg-base-200 cursor-pointer"
+                        onClick={() => handleExampleClick(question)}
+                      >
+                        {question}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              placeholder="Ask a question or give a command..."
+              className="input input-bordered flex-grow"
+            />
+            <button 
+              type="submit" 
+              className="btn btn-primary"
+              disabled={isLoading || !userInput.trim()}
+            >
+              {isLoading ? "Processing..." : "Send"}
+            </button>
+          </div>
+        </form>
+      </div>
+      
+      {isLoading && <LoadingState />}
+      
+      {statusMessage && (
+        <div className="bg-base-100 shadow-lg shadow-secondary border-8 border-secondary rounded-xl p-6 mb-8">
+          <div className="flex items-center justify-center">
+            <p className="text-lg">{statusMessage}</p>
+          </div>
+        </div>
+      )}
+      
+      {response && !isLoading && (
+        <ResponseDisplay 
+          response={response} 
+          actionTaken={actionTaken} 
+          debugInfo={debugInfo} 
+        />
+      )}
+      
+      {/* Only show chat history in the main view, not in standalone mode */}
+      {!standalone && (
+        <ChatHistory messages={chatHistory.filter(msg => msg.role !== "system")} />
+      )}
+    </div>
+  );
+};
+
+export default NLIChat;
+
+# packages/nextjs/app/NLI/components/QuestionExamples.tsx
+import React from "react";
+
+interface QuestionExamplesProps {
+  onExampleClick?: (text: string) => void;
+}
+
+const QuestionExamples: React.FC<QuestionExamplesProps> = ({ onExampleClick }) => {
+  const easyQuestions = [
+    "Swap 5 TokenA for TokenB", 
+    "Deposit 10 TokenA and 10 TokenB to the TokenA-TokenB pool", 
+    "Withdraw 5 of my liquidity tokens in the TokenA-TokenB pool", 
+    "What are the reserves of the TokenA-TokenB pool?", 
+    "Show me all the liquidity pools",
+    "How much liquidity I have in each pool", 
+    "How many swaps have there been in the TokenA-TokenB pool today?", 
+    "What is the current price of TokenB in TokenA?", 
+    "How much liquidity do I have in the TokenA-TokenB pool?", 
+    "Show me the balance of my wallet",
+  ];
+  
+  const hardQuestions = [
+    "What is the best route to swap 5 ETH to TokenB? Draw a conclusion by calculation.", 
+    "I want to gain 20 liquidity tokens for the TokenA-TokenB pool, how much TokenA and TokenB do I need to provide?",    "Do I have enough tokens to provide 15% of TokenA-TokenB pool liquidity?",
+    "I want to get 10 TokenA, how many liquidity tokens do I need to withdraw from the TokenA-TokenB pool?",
+    "How do I swap so the ratio of TokenA:TokenB in the TokenA-TokenB pool is 1:2?",
+    "What percentage of liquidity should I provide to double the reserves of the TokenA-TokenB pool?",
+    "Calculate my projected APY from fees in the TokenA-TokenB pool",
+    "Show me price history of TokenA-TokenB pool for the last 7 days",
+    "What's the slippage if I swap 10 TokenA for TokenB?",
+    "What's the optimal ratio to provide TokenA-TokenB liquidity?",
+    "What's the price impact of swapping 20% of TokenA-TokenB reserves?",
+  ];
+
+  const handleClick = (question: string) => {
+    // Copy to clipboard
+    navigator.clipboard.writeText(question)
+      .then(() => {
+        // If onExampleClick callback is provided, call it
+        if (onExampleClick) {
+          onExampleClick(question);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to copy text: ', err);
+      });
+  };
+
+  return (
+    <div className="mb-4">
+      <p className="text-lg mb-4">
+        Ask questions or give commands in plain English:
+      </p>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Easy Questions Column */}
+        <div className="bg-base-200 rounded-lg p-5 shadow-inner">
+          <h3 className="font-bold text-primary text-lg mb-4">Easy Examples</h3>
+          <ul className="space-y-3">
+            {easyQuestions.map((question, index) => (
+              <li key={`easy-${index}`} 
+                  className="cursor-pointer hover:bg-base-300 p-3 rounded-md transition-all border border-transparent hover:border-primary"
+                  onClick={() => handleClick(question)}>
+                {question}
+              </li>
+            ))}
+          </ul>
+        </div>
+        
+        {/* Hard Questions Column */}
+        <div className="bg-base-200 rounded-lg p-5 shadow-inner">
+          <h3 className="font-bold text-secondary text-lg mb-4">Advanced Examples</h3>
+          <ul className="space-y-3">
+            {hardQuestions.map((question, index) => (
+              <li key={`hard-${index}`} 
+                  className="cursor-pointer hover:bg-base-300 p-3 rounded-md transition-all border border-transparent hover:border-secondary"
+                  onClick={() => handleClick(question)}>
+                {question}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+      
+      <div className="mt-4 text-center text-gray-600 text-sm">
+        Click any example to copy it to your clipboard
+      </div>
+    </div>
+  );
+};
+
+export default QuestionExamples;
+
+# packages/nextjs/app/NLI/components/ResponseDisplay.tsx
+import React from "react";
+import DebugPanel from "./DebugPanel";
+
+type ResponseDisplayProps = {
+  response: string;
+  actionTaken?: string | null;
+  debugInfo: any;
+};
+
+const ResponseDisplay: React.FC<ResponseDisplayProps> = ({ 
+  response, 
+  actionTaken, 
+  debugInfo 
+}) => {
+  if (!response) return null;
+
+  const displayResponse = actionTaken 
+    ? `${response}\n\n[${actionTaken}]` 
+    : response;
+
+  return (
+    <div className="bg-base-100 shadow-lg shadow-accent border-8 border-accent rounded-xl p-6 mb-8">
+      <h2 className="text-2xl font-semibold mb-4">Latest Response</h2>
+      <div className="bg-accent bg-opacity-10 p-4 rounded-lg">
+        <p className="whitespace-pre-line font-medium">{displayResponse}</p>
+      </div>
+      
+      <DebugPanel debugInfo={debugInfo} />
+    </div>
+  );
+};
+
+export default ResponseDisplay;
+
+# packages/nextjs/app/NLI/hooks/useLLM.ts
+// packages/nextjs/app/NLI/hooks/useLLM.ts
+import { useState } from "react";
+import { DMX_API_KEY, DMX_BASE_URL, DEFAULT_LLM_MODEL } from "../utils/constants";
+import { extractActionFromResponse } from "../utils/formatters";
+
+type Message = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
+type LLMResponse = {
+  processedResponse: string;
+  actionTaken: string | null;
+  actionType?: string;
+  actionParams?: string[];
+};
+
+// Map of LLM model IDs to their API model names
+const MODEL_MAP: Record<string, string> = {
+  "gpt-4o-mini": "gpt-4o-mini",
+  "gpt-4o": "gpt-4o",
+  "llama-3.3-70b-instruct": "llama-3.3-70b-instruct",
+  "deepseek-ai/DeepSeek-V3": "deepseek-ai/DeepSeek-V3",
+};
+
+/**
+ * Hook for LLM communication and response processing
+ */
+export const useLLM = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [chatHistory, setChatHistory] = useState<Message[]>([]);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+
+  /**
+   * Call the LLM with the given input and context
+   * @param userQuestion - User input to process
+   * @param blockchainData - Current blockchain state data
+   * @param selectedModel - Selected LLM model ID
+   * @returns Promise with LLM response
+   */
+  const callLLM = async (userQuestion: string, blockchainData: any, selectedModel: string = "openai-gpt4"): Promise<string> => {
+    try {
+      // Get the API model name from the model map or fallback to default
+      const modelName = MODEL_MAP[selectedModel] || DEFAULT_LLM_MODEL;
+      
+      // Construct the prompt with blockchain data context and available actions
+      const systemMessage = `You are a helpful blockchain assistant that can both provide information and execute actions.
+      
+      The user has the following blockchain data:
+      - Wallet address: ${blockchainData.walletAddress}
+      - TokenA contract address: ${blockchainData.tokenAAddress}
+      - TokenB contract address: ${blockchainData.tokenBAddress}
+      - ETH-TokenA pool address: ${blockchainData.ethTokenAPoolAddress}
+      - ETH-TokenB pool address: ${blockchainData.ethTokenBPoolAddress}
+      - TokenA-TokenB pool address: ${blockchainData.tokenATokenBPoolAddress}
+      
+      User's balances:
+      - ETH balance: ${blockchainData.balances.eth}
+      - TokenA balance: ${blockchainData.balances.tokenA}
+      - TokenB balance: ${blockchainData.balances.tokenB}
+      
+      User's liquidity positions:
+      - ETH-TokenA Pool: ${blockchainData.userLiquidity.ethTokenAPool} LP tokens (${blockchainData.pools.ethTokenAPool.userLiquidityPercentage}% of pool)
+      - ETH-TokenB Pool: ${blockchainData.userLiquidity.ethTokenBPool} LP tokens (${blockchainData.pools.ethTokenBPool.userLiquidityPercentage}% of pool)
+      - TokenA-TokenB Pool: ${blockchainData.userLiquidity.tokenATokenBPool} LP tokens (${blockchainData.pools.tokenATokenBPool.userLiquidityPercentage}% of pool)
+      
+      Pool Information:
+      - ETH-TokenA Pool: ETH=${blockchainData.pools.ethTokenAPool.eth}, TokenA=${blockchainData.pools.ethTokenAPool.tokenA}, Total Liquidity=${blockchainData.pools.ethTokenAPool.totalLiquidity}
+      - ETH-TokenB Pool: ETH=${blockchainData.pools.ethTokenBPool.eth}, TokenB=${blockchainData.pools.ethTokenBPool.tokenB}, Total Liquidity=${blockchainData.pools.ethTokenBPool.totalLiquidity}
+      - TokenA-TokenB Pool: TokenA=${blockchainData.pools.tokenATokenBPool.tokenA}, TokenB=${blockchainData.pools.tokenATokenBPool.tokenB}, Total Liquidity=${blockchainData.pools.tokenATokenBPool.totalLiquidity}
+      
+      You can help the user by:
+      1. Answering questions about their balances, pool states, and liquidity positions
+      2. Executing the following actions when requested:
+         - SWAP: Format your response with "ACTION:SWAP:fromToken:toToken:amount" (e.g., "ACTION:SWAP:ETH:TokenA:0.1")
+         - ADD LIQUIDITY: Format with "ACTION:DEPOSIT:pool:amount1:amount2" (e.g., "ACTION:DEPOSIT:ETHTokenAPool:0.1:10")
+           * For ETH-TokenA pool, use "ETHTokenAPool" as the pool name with ETH as amount1 and TokenA as amount2
+           * For ETH-TokenB pool, use "ETHTokenBPool" as the pool name with ETH as amount1 and TokenB as amount2
+           * For TokenA-TokenB pool, use "TokenATokenBPool" as the pool name with TokenA as amount1 and TokenB as amount2
+         - WITHDRAW LIQUIDITY: Format with "ACTION:WITHDRAW:pool:amount" (e.g., "ACTION:WITHDRAW:ETHTokenAPool:5")
+           * Use the same pool name format as for ADD LIQUIDITY
+      
+      IMPORTANT: When executing actions, use EXACTLY these pool names:
+      - "ETHTokenAPool" for the ETH-TokenA pool
+      - "ETHTokenBPool" for the ETH-TokenB pool
+      - "TokenATokenBPool" for the TokenA-TokenB pool
+      
+      For actions, keep your response short and focused. Start with a brief acknowledgment of what you're doing, then include the ACTION format on a new line.
+      For regular questions, provide concise, friendly answers focused on the blockchain information.
+      
+      If the user asks about their liquidity in a specific pool, tell them both the amount of LP tokens they hold and what percentage of the pool that represents. For example:
+      - "You have 5.25 LP tokens in the TokenA-TokenB pool, which is 12.34% of the total pool liquidity."
+      
+      Important: If the user asks about historical pricing, swap history, price trends, or analytics, suggest they check the Swap Analytics tab which provides detailed charts and data visualization for all pool transactions.`;
+      
+      // Prepare messages including chat history for context
+      const messages = [
+        { role: "system", content: systemMessage },
+        ...chatHistory,
+        { role: "user", content: userQuestion }
+      ];
+      
+      // Log which model is being used
+      console.log(`Using LLM model: ${modelName} (selected: ${selectedModel})`);
+      
+      // Call the DMX API
+      const response = await fetch(`${DMX_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${DMX_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: messages,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        setDebugInfo({
+          status: response.status,
+          statusText: response.statusText,
+          errorText: errorText
+        });
+        throw new Error(`API request failed with status ${response.status}: ${errorText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Add model info to debug data
+      setDebugInfo({
+        ...data,
+        selectedModel,
+        modelName
+      });
+      
+      return data.choices[0].message.content;
+      
+    } catch (error: any) {
+      console.error("Error calling LLM:", error);
+      return "Sorry, I couldn't process your request. Please try again later.";
+    }
+  };
+  
+  /**
+   * Process the LLM response for potential actions
+   * @param llmResponse - Raw response from LLM
+   * @returns Processed response with action information
+   */
+  const processResponse = (llmResponse: string): LLMResponse => {
+    // Check if the response contains an action code
+    const actionInfo = extractActionFromResponse(llmResponse);
+    
+    if (actionInfo) {
+      return { 
+        processedResponse: llmResponse.replace(actionInfo.actionLine, "").trim(),
+        actionTaken: null,
+        actionType: actionInfo.actionType,
+        actionParams: actionInfo.params
+      };
+    }
+    
+    // If no action was found
+    return { 
+      processedResponse: llmResponse,
+      actionTaken: null
+    };
+  };
+  
+  /**
+   * Handle a user message, get LLM response, and update chat history
+   * @param userInput - User's message
+   * @param blockchainData - Current blockchain state
+   * @param selectedModel - Selected LLM model ID
+   * @returns Promise with processed LLM response
+   */
+  const handleUserMessage = async (
+    userInput: string, 
+    blockchainData: any, 
+    selectedModel: string = "openai-gpt4"
+  ): Promise<LLMResponse> => {
+    setIsLoading(true);
+    
+    try {
+      // Add user message to chat history
+      const newUserMessage = { role: "user", content: userInput };
+      const updatedHistory = [...chatHistory, newUserMessage];
+      setChatHistory(updatedHistory);
+      
+      // Get response from LLM with selected model
+      const llmResponse = await callLLM(userInput, blockchainData, selectedModel);
+      
+      // Process the response for potential actions
+      const processedResponse = processResponse(llmResponse);
+      
+      // Add assistant response to chat history
+      const newAssistantMessage = { role: "assistant", content: processedResponse.processedResponse };
+      setChatHistory([...updatedHistory, newAssistantMessage]);
+      
+      return processedResponse;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  return {
+    handleUserMessage,
+    isLoading,
+    chatHistory,
+    debugInfo,
+    setChatHistory
+  };
+};
+
+export default useLLM;
+
+Now, I want you to modify the overall layout of my "NLI page", so that:
+1. Show all 20 test cases, including 10 easy one and 10 hard one;
+  and change the 10 easy questions to:
+  const easyQuestions = [
+      "Show me the instruction to swap 5 TokenA for TokenB", 
+      "Show me the instruction to deposit 10 TokenA and 10 TokenB to the TokenA-TokenB pool", 
+      "Show me the instruction to withdraw 5 of my liquidity tokens in the TokenA-TokenB pool", 
+      "What are the reserves of the TokenA-TokenB pool?", 
+      "Show me all the liquidity pools",
+      "How much liquidity I have in each pool", 
+      "How many swaps have there been in the TokenA-TokenB pool today?", 
+      "What is the current price of TokenB in TokenA?", 
+      "How much liquidity do I have in the TokenA-TokenB pool?", 
+      "Show me the balance of my wallet",
+    ];
+2. For each test case, Display a drop-down menu:
+  The natural language instruction
+  The correct answer for the test case.
+  A button that executes the test case.
+  The output from an open source model.
+  The output from OpenAI.
+3. The chat history of the 20 test cases should be persistent,
+  If the user have not click the "execution button", show nothing, 
+  If the user test the same question more than once(click the "execution button" again),
+  only remain the latest chat history. 
+4. This NLI page should allow users to add more test cases through the UI.
+  This should be reached by showing a chat box that allow user to input questions, and show the answer;
+  the chat history of this part does not need to be persistent.
