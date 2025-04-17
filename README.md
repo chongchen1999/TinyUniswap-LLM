@@ -1,100 +1,105 @@
-# Uniswap Web3 UI  
+# TinyUniswap with Natural Language Integration
 
-## 📌 **Project Overview**  
-This project is a Web3 user interface (UI) for the upgraded Uniswap smart contracts built in Homework 5. The UI enables users to interact with Uniswap liquidity pools directly from the browser. The goal is to provide a seamless experience for selecting pools, managing liquidity, and visualizing market data.  
+A Uniswap interface enhanced with natural language processing capabilities, allowing users to interact with Uniswap contracts through conversational commands.
 
-## 🚀 **Features**  
-### ✅ **Core Functionality**  
-- **Pool Selection:**  
-   - Browse and select available liquidity pools.  
+## Features
 
-- **Deposit, Redeem, and Swap:**  
-   - Deposit tokens into a pool to provide liquidity.  
-   - Redeem liquidity tokens to withdraw assets.  
-   - Swap tokens within the pool at market rates.  
+- **Natural Language Interaction**: Execute Uniswap operations using conversational commands
+- **Multiple LLM Support**: Compare performance between OpenAI and open-source models
+- **Full Uniswap Functionality**: Liquidity provision, token swaps, and pool analysis
+- **Interactive Testing**: Built-in test cases with performance metrics
+- **MetaMask Integration**: Seamless transaction signing and submission
 
-### 📊 **Visualizations**  
-- **Reserves Curve:**  
-   - A dynamic chart showing the real-time reserves of each pool.  
-   - Updated automatically with every pool action.  
+## Contract Deployment
 
-- **Execution Price Distribution:**  
-   - A histogram or line chart displaying the distribution of execution prices for past swaps.  
-   - Updated in real-time with new swap data.  
+All smart contracts have been deployed and verified on the Sepolia testnet:
 
-## 🛠️ **Tech Stack**  
-### **Smart Contracts**  
-- **Solidity:** Upgraded UniswapV2 smart contracts.  
-- **Foundry:** Used for contract development and testing.  
-- **Public Testnet:** Contracts deployed on a public Ethereum testnet (e.g., Goerli).  
+- TokenA: `0xB667f5e8171468F12F47eF7E03C76F5594F33248`
+- TokenB: `0xC215279133800AFca77eF50C6651db656831138e`
+- TokenATokenBPool: `0x117F180f4bB2235c075b4a3FB5Dc5ff72d74A739`
 
-### **Frontend**  
-- **Framework:** [Scaffold-ETH](https://github.com/scaffold-eth/scaffold-eth)  
-- **React:** UI components and state management.  
-- **Ethers.js:** Web3 library for contract interactions.  
-- **Chart.js / Recharts:** For building interactive charts.  
+## Live Demo
 
-### **Deployment**  
-- **Smart Contracts:** Deployed on a public Ethereum testnet.  
-- **UI:** Hosted on [Vercel](https://vercel.com).  
+Access the application at: [https://tinyuniswap-llm.vercel.app/](https://tinyuniswap-llm.vercel.app/)
 
-## 🏗️ **Setup & Installation**  
-### 1. **Clone the Repository**  
-```bash
-git clone https://github.com/your-username/uniswap-web3-ui.git
-cd uniswap-web3-ui
-```
+## Development Setup
 
-### 2. **Install Dependencies**  
-```bash
-npm install
-```
+### Prerequisites
 
-### 3. **Set Up Environment Variables**  
-Create a `.env` file in the project root and add the following:  
-```env
-NEXT_PUBLIC_RPC_URL=<YOUR_TESTNET_RPC_URL>
-NEXT_PUBLIC_CONTRACT_ADDRESS=<DEPLOYED_CONTRACT_ADDRESS>
-NEXT_PUBLIC_WALLET_PRIVATE_KEY=<YOUR_PRIVATE_KEY>
-```
+- Node.js (v16+)
+- Yarn package manager
+- MetaMask browser extension
+- Access to Ethereum testnet (Sepolia)
 
-### 4. **Run the Project**  
-```bash
-npm run dev
-```
+### Installation
 
-### 5. **Deploy the Smart Contracts**  
-Using Foundry:  
-```bash
-forge script deploy.s.sol --rpc-url <RPC_URL> --private-key <PRIVATE_KEY> --broadcast
-```
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/chongchen1999/TinyUniswap-LLM.git
+   cd TinyUniswap-LLM
+   ```
 
-### 6. **Deploy the UI to Vercel**  
-```bash
-vercel --prod
-```
+2. Install dependencies:
+   ```bash
+   yarn install
+   ```
 
-## 🎯 **Usage**  
-1. Connect your wallet using MetaMask.  
-2. Select a pool from the list of available pools.  
-3. Deposit liquidity, redeem assets, or swap tokens.  
-4. Monitor pool performance using real-time charts.  
+3. Configure environment variables:
+   Create a `.env` file in the root directory with the following variables:
+   ```
+   REACT_APP_OPENAI_API_KEY=your_openai_api_key
+   REACT_APP_ALCHEMY_API_KEY=your_alchemy_api_key
+   ```
 
-## ✅ **Best Practices**  
-- Follow the ERC-20 standard for token compatibility.  
-- Ensure slippage protection during swaps.  
-- Use try-catch blocks for smart contract calls.  
+### Running Locally
 
-## 📝 **Future Improvements**  
-- Add historical data for deeper analysis.  
-- Improve chart interactivity.  
-- Optimize gas fees for contract interactions.  
+#### Option 1: Using Local Blockchain
 
-## 🏆 **Contributors**  
-- **[Your Name]** – Smart Contracts, UI Development, Charting  
+1. Start local blockchain:
+   ```bash
+   yarn chain
+   ```
 
----
+2. Deploy contracts:
+   ```bash
+   yarn deploy --reset
+   ```
 
-✅ **Live Demo:** [https://uniswap-web3-ui.vercel.app](https://uniswap-web3-ui.vercel.app)  
-✅ **Smart Contract Address:** `<DEPLOYED_CONTRACT_ADDRESS>`  
-✅ **License:** MIT  
+3. Start frontend application:
+   ```bash
+   yarn start
+   ```
+
+#### Option 2: Using Sepolia Testnet
+
+1. Configure MetaMask to connect to Sepolia testnet
+
+2. Start the frontend application:
+   ```bash
+   yarn start
+   ```
+
+## Using the Application
+
+1. Connect your MetaMask wallet (ensure you have Sepolia ETH)
+2. Get test tokens from the faucet section
+3. Use the natural language interface to interact with the Uniswap contracts
+   - Example commands:
+     - "Swap 10 TokenA for TokenB"
+     - "Add liquidity with 5 TokenA and 5 TokenB"
+     - "Show me the current pool stats"
+     - "What's the price impact of swapping 100 TokenA?"
+
+## Testing Framework
+
+The application includes a built-in testing framework:
+1. Navigate to the Testing tab
+2. Choose from standard or challenging test cases
+3. Run tests to compare performance between different LLM models
+4. Add your own custom test cases through the UI
+
+## Acknowledgments
+
+- Uniswap for the original DEX implementation
+- OpenAI for providing API access
+- The Ethereum community for continuous support and innovation
