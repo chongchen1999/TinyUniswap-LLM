@@ -25,6 +25,7 @@ Access the application at: [https://tinyuniswap-llm.vercel.app/](https://tinyuni
 ## Video Link
 
 Homework 6: Uniswap Web3 UI: https://youtu.be/6EZNUZK5jOg
+
 Homework 7: Add NL Interactivity to your Uniswap UI: https://www.youtube.com/watch?v=AYupXadXCyc
 
 ## Development Setup
